@@ -1,1 +1,189 @@
+# импорт библиотек
 
+# Библиотека работы с массивами
+import numpy as np 
+
+# Библиотека для работы с базами
+import pandas as pd 
+
+# Импортируем для создания полносвязной сети и модели
+from tensorflow.keras.models import Sequential, Model 
+
+# Необходимые слои
+from tensorflow.keras.layers import concatenate, Input, Dense, Dropout, BatchNormalization, Flatten 
+
+# Используем для работы с категориальными данными
+from tensorflow.keras import utils 
+
+# Импортируем оптимизаторы
+from tensorflow.keras.optimizers import Adam, Adadelta, Adagrad 
+
+# Импортируем токенайзер
+from tensorflow.keras.preprocessing.text import Tokenizer 
+
+# импортируем коллбэки
+from keras.callbacks import  ReduceLROnPlateau,  EarlyStopping
+
+# Подключаем стандартизатор
+from sklearn.preprocessing import StandardScaler, MinMaxScaler 
+
+# Для разбивки на выборки
+from sklearn.model_selection import train_test_split 
+
+# Функции для подсчета ошибок
+from sklearn.metrics import mean_squared_error, mean_absolute_error 
+
+# Для работы с графиками
+import matplotlib.pyplot as plt
+%matplotlib inline
+     
+
+from google.colab import drive
+drive.mount('/content/drive')
+     
+Drive already mounted at /content/drive; to attempt to forcibly remount, call drive.mount("/content/drive", force_remount=True).
+
+df = pd.read_csv('/content/drive/MyDrive/content/t1_20220101_20220726_rg_201589066.csv', header=0, index_col=0)
+df.head()
+     
+/usr/local/lib/python3.8/dist-packages/IPython/core/interactiveshell.py:3326: DtypeWarning: Columns (12,39,51,52) have mixed types.Specify dtype option on import or set low_memory=False.
+  exec(code_obj, self.user_global_ns, self.user_ns)
+Unnamed: 0.1	ym:s:bounce	ym:s:browser	ym:s:browserCountry	ym:s:browserLanguage	ym:s:clientID	ym:s:cookieEnabled	ym:s:date	ym:s:deviceCategory	ym:s:endURL	...	ym:s:screenWidth	ym:s:startURL	ym:s:UTMCampaign	ym:s:UTMContent	ym:s:UTMMedium	ym:s:UTMSource	ym:s:UTMTerm	ym:s:visitDuration	ym:s:visitID	ym:s:watchIDs
+0	0	1	chrome	us	en	1654489350380812167	1	2022-06-06	1	endURL_1	...	1920	startURL_1	NaN	NaN	NaN	NaN	NaN	0	3107078458710949968	[3107078458710949968]
+1	1	1	yandexsearch	ru	ru	1654774521346384154	1	2022-06-09	2	endURL_2	...	360	startURL_2	june22	spec_all	banner	novostroy-m	NaN	0	3181830630067929292	[3181830630067929292]
+2	2	1	safari_mobile	NaN	ru	1656147792622821132	1	2022-06-25	2	endURL_1	...	375	startURL_1	june22	spec_all	banner	pronovostroy	NaN	0	3541825601891205395	[3541825601891205395]
+3	3	0	chromemobile	ru	ru	164793238281186116	1	2022-03-22	2	endURL_3	...	360	startURL_1	konkurenty-vc_net_mmo|61228084	id|31333861543_|cid|61228084|gid|4546929028|ai...	cpc	yandex	31333861543_	63	1387990388022968378	[1387990388022968378,1388007054027522266,13879...
+4	4	1	safari_mobile	NaN	ru	1654789614786669323	1	2022-06-09	2	endURL_1	...	390	startURL_1	prigranichye_net_mir|74741535	id|39038979686_|cid|74741535|gid|4924248374|ai...	cpc	yandex	39038979686_	0	3185787202690875607	[3185787202690875607]
+5 rows × 67 columns
+
+
+data_text = df['ym:s:goalsID'].values 
+
+len(data_text)
+     
+361919
+
+data_text = df['ym:s:goalsPrice'].values 
+
+len(data_text)
+     
+361919
+
+maxWordsCount = 5000 
+
+sim_for_del='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~\t\n'
+
+tokenizer = Tokenizer (num_words=maxWordsCount, 
+                       filters=sim_for_del, 
+                       lower=True, 
+                       split=' ', 
+                       oov_token='unknown', 
+                       char_level=False)
+
+tokenizer.fit_on_texts(data_text)
+     
+
+# Переводим в Эмбеддинг пространство
+Sequences = tokenizer.texts_to_sequences(data_text)
+
+# Вариант  Bag of Words
+xBOW_text = tokenizer.sequences_to_matrix(Sequences)
+     
+
+from numpy.core.multiarray import dtype
+xTrain = np.array(df[["ym:s:bounce",	"ym:s:clientID",	"ym:s:cookieEnabled",	"ym:s:deviceCategory", "ym:s:screenWidth",	"ym:s:visitDuration"]].astype("int"))
+
+yTrain = np.array(df['ym:s:goalsPrice']) 
+     
+
+print(xTrain.shape)
+print(yTrain.shape)
+print(xBOW_text.shape)
+     
+(361919, 6)
+(361919,)
+(361919, 5000)
+
+x_train, x_test, x_train_text, x_test_text, y_train, y_test = train_test_split(xTrain, xBOW_text, yTrain, test_size=0.05, shuffle = False)
+     
+
+print(x_train.shape)
+print(x_train_text.shape)
+print(y_train.shape)
+print(x_test.shape)
+print(x_test_text.shape)
+print(y_test.shape)
+     
+
+len(x_train_text[6])
+     
+
+earlystop=EarlyStopping(monitor='val_loss', 
+                        min_delta=0,
+                        patience=4,
+                        verbose=1,
+                        baseline=None,
+                        restore_best_weights=True)
+
+reduceLROnPlateau = ReduceLROnPlateau(monitor='val_loss', 
+                                      factor=0.6, 
+                                      patience=2, 
+                                      verbose=1)
+     
+
+input1 = Input((x_train.shape[1],))
+input2 = Input((x_train_text.shape[1],))
+
+x1 = Dense(1024, activation='relu') (input1)
+x1 = BatchNormalization()(x1)
+x1 = Dropout(0.3)(x1)
+x1 = Dense(768, activation='sigmoid')(x1)
+x1 = BatchNormalization()(x1)
+x1 = Dropout(0.3)(x1)
+x1 = Dense(512, activation='sigmoid')(x1)
+
+x2 = Dense(400, activation='sigmoid') (input2)
+x2 = BatchNormalization()(x2)
+x2 = Dropout(0.3)(x2)
+x2 = Dense(100, activation='hard_sigmoid') (x2)
+
+x = concatenate([x1, x2])
+
+x = Dense(100, activation='relu')(x)
+x = BatchNormalization()(x)
+x = Dropout(0.3)(x)
+x = Dense(50, activation='sigmoid')(x)
+x = Dropout(0.3)(x)
+x = Dense(1, activation='linear')(x)
+
+model = Model((input1, input2), x)
+model.compile(optimizer=Adam(learning_rate=0.0001), loss='MAE', metrics=['mae'])
+
+history = model.fit((x_train, x_train_text), y_train, epochs=100, validation_split=0.1, verbose=1, shuffle=True, callbacks=[earlystop, reduceLROnPlateau])
+compare_sharp_loss(history,10,4)  
+     
+
+def check_MAE_predictl_DubbleInput (model_name, 
+                                    x_data,
+                                    x_data_text,
+                                    y_data_not_scaled, 
+                                    plot=False):
+
+  mae = 0 # Инициализируем начальное значение ошибки
+  y_pred = (model_name.predict([x_data,x_data_text])).squeeze()
+ 
+  for n in range (0,len(x_data)):
+    mae += abs(y_data_not_scaled[n] - y_pred[n]) # Увеличиваем значение ошибки для текущего элемента
+  mae /= len(x_data) # Считаем среднее значение
+  print('Средняя абсолютная ошибка {:.3f}  это {:.3f}% от общей выборки в {}'.format(mae, (mae/y_data_not_scaled.mean(axis=0))*100,len(x_data_text)))
+
+  if plot:
+     plt.scatter(y_data_not_scaled, y_pred)
+     plt.xlabel('Правильные значение')
+     plt.ylabel('Предсказания')
+     plt.axis('equal')
+     plt.xlim(plt.xlim())
+     plt.ylim(plt.ylim())
+     plt.plot([0, 250], [0, 250])
+     plt.show()
+     
